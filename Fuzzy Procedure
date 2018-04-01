@@ -1,0 +1,126 @@
+
+-------------------------SALES TRAINGLE STORED PROC ------------------------------------
+IF EXISTS ( SELECT * 
+            FROM   sysobjects 
+            WHERE  id = object_id(N'[dbo].[p_update_camp_fuzzy_sales_mv]') 
+                   and OBJECTPROPERTY(id, N'IsProcedure') = 1 )
+BEGIN
+    DROP PROCEDURE [dbo].[p_update_camp_fuzzy_sales_mv]
+END
+
+GO
+CREATE PROCEDURE p_update_camp_fuzzy_sales_mv
+AS
+SET NOCOUNT ON
+DECLARE @v_campaign_no int,
+@v_campaign_name  nvarchar(100),
+@v_campaign_description nvarchar(500),
+@v_report_date date,
+@v_sales_total DECIMAL(38,5),
+@v_mem_set int,
+@v_fuzzy_status int
+
+
+DECLARE sales_cur CURSOR FOR
+select t1.campaign_no,t1.Campaign_Name,t1.Campaign_description, sysdate, t1.net_sales,t2.MEM_SET, t2.status
+FROM 
+(
+SELECT Campaign_No, Campaign_Name, campaign_description, sysdatetime() as sysdate, net_sales
+FROM wt_net)t1,
+(
+select DISTINCT MEM_SET, status
+from fuzzy_param_triangle
+where status=1)t2;
+ 
+OPEN sales_cur
+FETCH NEXT FROM sales_cur
+INTO @v_campaign_no, @v_campaign_name, @v_campaign_description, @v_report_date, @v_sales_total, @v_mem_set, @v_fuzzy_status
+
+WHILE (@@FETCH_STATUS = 0)
+BEGIN
+	IF @v_fuzzy_status =1
+	BEGIN
+	INSERT INTO CAMP_FUZZY_SALES_MV (campaign_no, campaign_name, campaign_description, report_date, sales_total, mem_set,
+	POOR, BELOW_AVERAGE, AVERAGE, ABOVE_AVERAGE, EXCELLENT) 
+	VALUES (@v_campaign_no, @v_campaign_name, @v_campaign_description, @v_report_date, @v_sales_total, @v_mem_set,
+	dbo.update_sales_poor(@v_campaign_no, @v_sales_total, @v_mem_set),
+	dbo.update_sales_below_average(@v_campaign_no, @v_sales_total, @v_mem_set),
+	dbo.update_sales_average(@v_campaign_no, @v_sales_total, @v_mem_set), 
+	dbo.update_sales_above_average(@v_campaign_no, @v_sales_total, @v_mem_set),
+	dbo.update_sales_excellent(@v_campaign_no, @v_sales_total, @v_mem_set)
+	);
+	END
+
+	FETCH NEXT FROM sales_cur
+	INTO @v_campaign_no, @v_campaign_name, @v_campaign_description, @v_report_date, @v_sales_total, @v_mem_set, @v_fuzzy_status
+END
+CLOSE sales_cur
+DEALLOCATE sales_cur
+GO
+
+
+
+-------------------------SALES TRAINGLE STORED PROC END ------------------------------------
+
+--------------------sales trapezoid procedure ------------------------------------------
+IF EXISTS ( SELECT * 
+            FROM   sysobjects 
+            WHERE  id = object_id(N'[dbo].[p_update_camp_fuzzy_sales_mv_z]') 
+                   and OBJECTPROPERTY(id, N'IsProcedure') = 1 )
+BEGIN
+    DROP PROCEDURE [dbo].[p_update_camp_fuzzy_sales_mv_z]
+END
+
+GO
+CREATE PROCEDURE p_update_camp_fuzzy_sales_mv_z 
+AS
+SET NOCOUNT ON
+DECLARE @v_campaign_no int,
+@v_campaign_name  nvarchar(50),
+@v_campaign_description nvarchar(50),
+@v_report_date date,
+@v_sales_total DECIMAL(20,5),
+@v_mem_set int,
+@v_fuzzy_status int
+
+
+DECLARE sales_cur_z CURSOR FOR
+select t1.campaign_no,t1.Campaign_Name,t1.Campaign_description, sysdate, t1.net_sales,t2.mem_set, t2.STATUS
+FROM 
+(
+SELECT Campaign_No,Campaign_Name, Campaign_description, sysdatetime() as sysdate, net_sales
+FROM wt_net)t1,
+(
+select DISTINCT MEM_SET as mem_set, status
+from fuzzy_param_trapezoid
+where status=1)t2;
+ 
+OPEN sales_cur_z
+FETCH NEXT FROM sales_cur_z
+INTO @v_campaign_no, @v_campaign_name, @v_campaign_description, @v_report_date, @v_sales_total, @v_mem_set, @v_fuzzy_status
+
+WHILE (@@FETCH_STATUS = 0)
+BEGIN
+	IF @v_fuzzy_status =1
+	BEGIN
+	INSERT INTO CAMP_FUZZY_SALES_MV (campaign_no, Campaign_Name, Campaign_description, report_date, sales_total, mem_set,
+	poor, BELOW_AVERAGE, AVERAGE, ABOVE_AVERAGE, EXCELLENT) 
+	VALUES (@v_campaign_no, @v_campaign_name, @v_campaign_description, @v_report_date, @v_sales_total, @v_mem_set,
+	dbo.update_sales_poor_z(@v_campaign_no, @v_sales_total, @v_mem_set),
+	dbo.update_sales_below_average_z(@v_campaign_no, @v_sales_total, @v_mem_set),
+	dbo.update_sales_average_z(@v_campaign_no, @v_sales_total, @v_mem_set), 
+	dbo.update_sales_above_average_z(@v_campaign_no, @v_sales_total, @v_mem_set),
+	dbo.update_sales_excellent_z(@v_campaign_no, @v_sales_total, @v_mem_set)
+	);
+	END
+
+	FETCH NEXT FROM sales_cur_z
+	INTO @v_campaign_no, @v_campaign_name, @v_campaign_description, @v_report_date, @v_sales_total, @v_mem_set, @v_fuzzy_status
+END
+CLOSE sales_cur_z
+DEALLOCATE sales_cur_z
+
+GO
+
+
+-------------------------- sales trapezoid procedure end ---------------------------------------------------
