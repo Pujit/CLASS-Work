@@ -1,0 +1,620 @@
+------------------------ SALES TRAINGLE FUNCTIONS ----------------------------------------------
+IF object_id(N'update_sales_poor', N'FN') IS NOT NULL
+    DROP FUNCTION update_sales_poor
+GO
+create FUNCTION update_sales_poor(
+@campaign_no numeric, 
+@sales_amount decimal(38,5), 
+@rule_set1 numeric
+) 
+
+returns DECIMAL
+AS
+BEGIN
+	DECLARE @v_value decimal(38,5),
+		 @a decimal(38,5), --:= 0;
+		 @b decimal(38,5), --:= 0;
+		 @c decimal(38,5),  --:= 2500000;
+		 @MEM_A decimal(38,5),
+		 @MEM_B decimal(38,5),
+		 @MEM_C decimal(38,5)
+
+	DECLARE update_meberships_cursor CURSOR FOR
+	SELECT MEMBERSHIP_A, MEMBERSHIP_B, MEMBERSHIP_C from FUZZY_PARAM_TRIANGLE 
+	where FUZZY_NAME='POOR' and 
+	ATTRIBUTE_NAME='SALES' and MEM_SET = @rule_set1
+ 
+	OPEN update_meberships_cursor
+	FETCH NEXT FROM update_meberships_cursor
+	INTO @MEM_A, @MEM_B, @MEM_C
+
+	WHILE (@@FETCH_STATUS = 0)
+	BEGIN
+		SET @a = @MEM_A*1000000;
+		SET @b = @MEM_B*1000000;
+		SET @c = @MEM_C*1000000;
+
+		IF(@sales_amount >= @b) and (@sales_amount< @c)
+		BEGIN
+		SET @v_value = (@c - @sales_amount)/(@c - @b);
+		END
+
+		ELSE
+		BEGIN
+		SET @v_value = 0;  
+		END
+
+		FETCH NEXT FROM update_meberships_cursor
+		INTO @MEM_A, @MEM_B, @MEM_C
+	END
+	return @v_value
+END
+GO
+
+IF object_id(N'update_sales_below_average', N'FN') IS NOT NULL
+    DROP FUNCTION update_sales_below_average
+GO
+
+CREATE FUNCTION update_sales_below_average(
+@campaign_no numeric, 
+@sales_amount decimal(38,5), 
+@rule_set1 numeric
+) 
+
+returns DECIMAL
+AS
+BEGIN
+	DECLARE @v_value decimal(38,5),
+		 @a decimal(38,5), --:= 0;
+		 @b decimal(38,5), --:= 0;
+		 @c decimal(38,5),  --:= 2500000;
+		 @MEM_A decimal(38,5),
+		 @MEM_B decimal(38,5),
+		 @MEM_C decimal(38,5)
+
+	DECLARE update_meberships_cursor CURSOR FOR
+	SELECT MEMBERSHIP_A, MEMBERSHIP_B, MEMBERSHIP_C from FUZZY_PARAM_TRIANGLE 
+	where FUZZY_NAME='BELOW_AVG' and 
+	ATTRIBUTE_NAME='SALES' and MEM_SET = @rule_set1
+ 
+	OPEN update_meberships_cursor
+	FETCH NEXT FROM update_meberships_cursor
+	INTO @MEM_A, @MEM_B, @MEM_C
+
+	WHILE (@@FETCH_STATUS = 0)
+	BEGIN
+		SET @a = @MEM_A*1000000;
+		SET @b = @MEM_B*1000000;
+		SET @c = @MEM_C*1000000;
+
+		IF(@sales_amount >= @b) and (@sales_amount<= @c)
+		BEGIN
+		SET @v_value = (@sales_amount - @a)/(@b - @a);
+		END
+
+		ELSE IF (@sales_amount > @b) and (@sales_amount < @c)
+		BEGIN
+			SET @v_value = (@c - @sales_amount)/(@c-@b)
+		END
+
+		ELSE
+		BEGIN
+		SET @v_value = 0;  
+		END
+
+		FETCH NEXT FROM update_meberships_cursor
+		INTO @MEM_A, @MEM_B, @MEM_C
+	END
+	return @v_value
+END
+GO
+
+IF object_id(N'update_sales_average', N'FN') IS NOT NULL
+    DROP FUNCTION update_sales_average
+GO
+
+CREATE FUNCTION update_sales_average(
+@campaign_no numeric, 
+@sales_amount decimal(38,5), 
+@rule_set1 numeric
+) 
+
+returns DECIMAL
+AS
+BEGIN
+	DECLARE @v_value decimal(38,5),
+		 @a decimal(38,5), --:= 0;
+		 @b decimal(38,5), --:= 0;
+		 @c decimal(38,5),  --:= 2500000;
+		 @MEM_A decimal(38,5),
+		 @MEM_B decimal(38,5),
+		 @MEM_C decimal(38,5)
+
+	DECLARE update_meberships_cursor CURSOR FOR
+	SELECT MEMBERSHIP_A, MEMBERSHIP_B, MEMBERSHIP_C from FUZZY_PARAM_TRIANGLE 
+	where FUZZY_NAME='AVG' and 
+	ATTRIBUTE_NAME='SALES' and MEM_SET = @rule_set1
+ 
+	OPEN update_meberships_cursor
+	FETCH NEXT FROM update_meberships_cursor
+	INTO @MEM_A, @MEM_B, @MEM_C
+
+	WHILE (@@FETCH_STATUS = 0)
+	BEGIN
+		SET @a = @MEM_A*1000000;
+		SET @b = @MEM_B*1000000;
+		SET @c = @MEM_C*1000000;
+
+
+		IF(@sales_amount > @a) and (@sales_amount<= @b)
+		BEGIN
+		SET @v_value = (@sales_amount - @a)/(@b - @a);
+		END
+
+		ELSE IF (@sales_amount > @b) and (@sales_amount < @c)
+		BEGIN
+			SET @v_value = (@c - @sales_amount)/(@c - @b)
+		END
+
+		ELSE
+		BEGIN
+		SET @v_value = 0;  
+		END
+
+		FETCH NEXT FROM update_meberships_cursor
+		INTO @MEM_A, @MEM_B, @MEM_C
+	END
+	return @v_value
+END
+GO
+
+
+IF object_id(N'update_sales_above_average', N'FN') IS NOT NULL
+    DROP FUNCTION update_sales_above_average
+GO
+create FUNCTION update_sales_above_average(
+@campaign_no numeric, 
+@sales_amount decimal(38,5), 
+@rule_set1 numeric
+) 
+
+returns DECIMAL
+AS
+BEGIN
+	DECLARE @v_value decimal(38,5),
+		 @a decimal(38,5), --:= 0;
+		 @b decimal(38,5), --:= 0;
+		 @c decimal(38,5),  --:= 2500000;
+		 @MEM_A decimal(38,5),
+		 @MEM_B decimal(38,5),
+		 @MEM_C decimal(38,5)
+
+	DECLARE update_meberships_cursor CURSOR FOR
+	SELECT MEMBERSHIP_A, MEMBERSHIP_B, MEMBERSHIP_C from FUZZY_PARAM_TRIANGLE 
+	where FUZZY_NAME='ABOVE_AVG' and 
+	ATTRIBUTE_NAME='SALES' and MEM_SET = @rule_set1
+ 
+	OPEN update_meberships_cursor
+	FETCH NEXT FROM update_meberships_cursor
+	INTO @MEM_A, @MEM_B, @MEM_C
+
+	WHILE (@@FETCH_STATUS = 0)
+	BEGIN
+		SET @a = @MEM_A*1000000;
+		SET @b = @MEM_B*1000000;
+		SET @c = @MEM_C*1000000;
+
+
+		IF(@sales_amount > @a) and (@sales_amount <= @b)
+		BEGIN
+		SET @v_value = (@sales_amount - @a)/(@b - @a);
+		END
+
+		ELSE IF (@sales_amount > @b) and (@sales_amount < @c)
+		BEGIN
+			SET @v_value = (@c - @sales_amount)/(@c-@b)
+		END
+
+		ELSE
+		BEGIN
+		SET @v_value = 0;  
+		END
+
+		FETCH NEXT FROM update_meberships_cursor
+		INTO @MEM_A, @MEM_B, @MEM_C
+	END
+	return @v_value
+END
+GO
+
+IF object_id(N'update_sales_excellent', N'FN') IS NOT NULL
+    DROP FUNCTION update_sales_excellent
+GO
+create FUNCTION update_sales_excellent(
+@campaign_no numeric, 
+@sales_amount decimal(38,5), 
+@rule_set1 numeric
+) 
+
+returns DECIMAL
+AS
+BEGIN
+	DECLARE @v_value decimal(38,5),
+		 @a decimal(38,5), --:= 0;
+		 @b decimal(38,5), --:= 0;
+		 @c decimal(38,5),  --:= 2500000;
+		 @MEM_A decimal(38,5),
+		 @MEM_B decimal(38,5),
+		 @MEM_C decimal(38,5)
+
+	DECLARE update_meberships_cursor CURSOR FOR
+	SELECT MEMBERSHIP_A, MEMBERSHIP_B, MEMBERSHIP_C from FUZZY_PARAM_TRIANGLE 
+	where FUZZY_NAME='EXCELLENT' and 
+	ATTRIBUTE_NAME='SALES' and MEM_SET = @rule_set1
+ 
+	OPEN update_meberships_cursor
+	FETCH NEXT FROM update_meberships_cursor
+	INTO @MEM_A, @MEM_B, @MEM_C
+
+	WHILE (@@FETCH_STATUS = 0)
+	BEGIN
+		SET @a = @MEM_A*1000000;
+		SET @b = @MEM_B*1000000;
+		SET @c = @MEM_C*1000000;
+
+
+		IF(@sales_amount > @a) and (@sales_amount <= @b)
+		BEGIN
+		SET @v_value = (@sales_amount - @a)/(@b - @a);
+		END
+
+		ELSE IF (@sales_amount > @b)
+		BEGIN
+			SET @v_value = 1;
+		END
+
+		ELSE
+		BEGIN
+		SET @v_value = 0;  
+		END
+
+		FETCH NEXT FROM update_meberships_cursor
+		INTO @MEM_A, @MEM_B, @MEM_C
+	END
+	return @v_value
+END
+GO
+
+-----------------------SALES TRAINGLE FUNCTION END ------------------------------
+
+
+---------SALES TRAPEZOID FUNCTION START --------------
+IF object_id(N'update_sales_poor_z', N'FN') IS NOT NULL
+    DROP FUNCTION update_sales_poor_z
+GO
+create FUNCTION update_sales_poor_z(
+@campaign_no numeric, 
+@sales_amount decimal(20,5), 
+@rule_set2 numeric
+) 
+
+returns DECIMAL
+AS
+BEGIN
+	DECLARE @v_value decimal(20,5),
+		 @a decimal(20,5), --:= 0;
+		 @b decimal(20,5), --:= 0;
+		 @c decimal(20,5),
+		 @d decimal(20,5),  --:= 2500000;
+		 @MEM_A decimal(20,5),
+		 @MEM_B decimal(20,5),
+		 @MEM_C decimal(20,5),
+		 @MEM_D decimal(20,5)
+
+	DECLARE update_meberships_cursor CURSOR FOR
+	SELECT MEMBERSHIP_A, MEMBERSHIP_B, MEMBERSHIP_C, MEMBERSHIP_D from fuzzy_param_trapezoid
+	where FUZZY_NAME='POOR' and 
+	ATTRIBUTE_NAME='SALES' and MEM_SET = @rule_set2
+ 
+	OPEN update_meberships_cursor
+	FETCH NEXT FROM update_meberships_cursor
+	INTO @MEM_A, @MEM_B, @MEM_C, @MEM_D
+
+	WHILE (@@FETCH_STATUS = 0)
+	BEGIN
+		SET @a = @MEM_A*1000000;
+		SET @b = @MEM_B*1000000;
+		SET @c = @MEM_C*1000000;
+		SET @c = @MEM_D*1000000;
+
+
+		IF (@sales_amount >= @b) and (@sales_amount < @c)
+		BEGIN
+			SET @v_value = 1;
+		END
+
+		ELSE IF (@sales_amount >= @c) and (@sales_amount < @d) 
+		BEGIN
+			SET @v_value = (@d - @sales_amount)/(@d - @c);  
+		END
+
+		ELSE
+		BEGIN
+			SET @v_value =0;
+		END
+
+		FETCH NEXT FROM update_meberships_cursor
+		INTO @MEM_A, @MEM_B, @MEM_C, @MEM_D
+	END
+	return @v_value
+END
+GO
+
+
+IF object_id(N'update_sales_below_average_z', N'FN') IS NOT NULL
+    DROP FUNCTION update_sales_below_average_z
+GO
+create FUNCTION update_sales_below_average_z(
+@campaign_no numeric, 
+@sales_amount decimal(20,5), 
+@rule_set2 numeric
+) 
+
+returns DECIMAL
+AS
+BEGIN
+	DECLARE @v_value decimal(20,5),
+		 @a decimal(20,5), --:= 0;
+		 @b decimal(20,5), --:= 0;
+		 @c decimal(20,5),  --:= 2500000;
+		 @d decimal(20,5),
+		 @MEM_A decimal(20,5),
+		 @MEM_B decimal(20,5),
+		 @MEM_C decimal(20,5),
+		 @MEM_D decimal(20,5)
+
+	DECLARE update_meberships_cursor CURSOR FOR
+	SELECT MEMBERSHIP_A, MEMBERSHIP_B, MEMBERSHIP_C, MEMBERSHIP_D from fuzzy_param_trapezoid
+	where FUZZY_NAME='BELOW_AVG' and 
+	ATTRIBUTE_NAME='SALES' and MEM_SET = @rule_set2
+ 
+	OPEN update_meberships_cursor
+	FETCH NEXT FROM update_meberships_cursor
+	INTO @MEM_A, @MEM_B, @MEM_C, @MEM_D
+
+	WHILE (@@FETCH_STATUS = 0)
+	BEGIN
+		SET @a = @MEM_A*1000000;
+		SET @b = @MEM_B*1000000;
+		SET @c = @MEM_C*1000000;
+		SET @d = @MEM_D*1000000;
+
+		IF(@sales_amount >= @a) and (@sales_amount< @b)
+		BEGIN
+		SET @v_value = (@sales_amount-@a)/(@b-@a);
+		END
+
+		ELSE IF (@sales_amount >= @b) and (@sales_amount< @c)
+		BEGIN
+			SET @v_value = 1;
+		END
+
+		ELSE IF (@sales_amount >= @c) and (@sales_amount< @d) 
+		BEGIN
+			SET @v_value = (@d-@sales_amount)/(@d-@c);
+		END
+
+		ELSE
+		BEGIN
+		SET @v_value = 0;  
+		END
+
+		FETCH NEXT FROM update_meberships_cursor
+		INTO @MEM_A, @MEM_B, @MEM_C, @MEM_D
+	END
+	return @v_value
+END
+GO
+
+ 
+IF object_id(N'update_sales_average_z', N'FN') IS NOT NULL
+    DROP FUNCTION update_sales_average_z
+GO
+create FUNCTION update_sales_average_z(
+@campaign_no numeric, 
+@sales_amount decimal(20,5), 
+@rule_set2 numeric
+) 
+
+returns DECIMAL
+AS
+BEGIN
+	DECLARE @v_value decimal(20,5),
+		 @a decimal(20,5), --:= 0;
+		 @b decimal(20,5), --:= 0;
+		 @c decimal(20,5),  --:= 2500000;
+		 @d decimal(20,5),
+		 @MEM_A decimal(20,5),
+		 @MEM_B decimal(20,5),
+		 @MEM_C decimal(20,5),
+		 @MEM_D decimal(20,5)
+
+	DECLARE update_meberships_cursor CURSOR FOR
+	SELECT MEMBERSHIP_A, MEMBERSHIP_B, MEMBERSHIP_C, MEMBERSHIP_D from fuzzy_param_trapezoid 
+	where FUZZY_NAME='AVG' and 
+	ATTRIBUTE_NAME='SALES' and MEM_SET = @rule_set2
+ 
+	OPEN update_meberships_cursor
+	FETCH NEXT FROM update_meberships_cursor
+	INTO @MEM_A, @MEM_B, @MEM_C, @MEM_D
+
+	WHILE (@@FETCH_STATUS = 0)
+	BEGIN
+		SET @a = @MEM_A*1000000;
+		SET @b = @MEM_B*1000000;
+		SET @c = @MEM_C*1000000;
+		SET @D = @MEM_D*1000000;
+  
+
+		IF(@sales_amount >= @a) and (@sales_amount< @b) 
+		BEGIN
+		SET @v_value = ( @sales_amount-@a)/(@b-@a);
+		END
+
+		ELSE IF (@sales_amount >= @b) and (@sales_amount< @c) 
+		BEGIN
+			SET @v_value = 1;
+		END
+
+		ELSE IF (@sales_amount >= @c) and (@sales_amount< @d)  
+		BEGIN
+			SET @v_value = (@d-@sales_amount)/(@d-@c);
+		END
+
+		ELSE
+		BEGIN
+		SET @v_value = 0;  
+		END
+
+		FETCH NEXT FROM update_meberships_cursor
+		INTO @MEM_A, @MEM_B, @MEM_C, @MEM_D
+	END
+	return @v_value
+END
+GO
+
+IF object_id(N'update_sales_above_average_z', N'FN') IS NOT NULL
+    DROP FUNCTION update_sales_above_average_z
+GO
+
+create FUNCTION update_sales_above_average_z(
+@campaign_no numeric, 
+@sales_amount decimal(20,5), 
+@rule_set2 numeric
+) 
+
+returns DECIMAL
+AS
+BEGIN
+	DECLARE @v_value decimal(20,5),
+		 @a decimal(20,5), --:= 0;
+		 @b decimal(20,5), --:= 0;
+		 @c decimal(20,5),  --:= 2500000;
+		 @d decimal(20,5),
+		 @MEM_A decimal(20,5),
+		 @MEM_B decimal(20,5),
+		 @MEM_C decimal(20,5),
+		 @MEM_D decimal(20,5)
+
+	DECLARE update_meberships_cursor CURSOR FOR
+	SELECT MEMBERSHIP_A, MEMBERSHIP_B, MEMBERSHIP_C, MEMBERSHIP_D from fuzzy_param_trapezoid 
+	where FUZZY_NAME='ABOVE_AVG' and 
+	ATTRIBUTE_NAME='SALES' and MEM_SET = @rule_set2
+ 
+	OPEN update_meberships_cursor
+	FETCH NEXT FROM update_meberships_cursor
+	INTO @MEM_A, @MEM_B, @MEM_C, @MEM_D
+
+	WHILE (@@FETCH_STATUS = 0)
+	BEGIN
+		SET @a = @MEM_A*1000000;
+		SET @b = @MEM_B*1000000;
+		SET @c = @MEM_C*1000000;
+		SET @D = @MEM_D*1000000; 
+
+
+		IF(@sales_amount >= @a) and (@sales_amount< @b) 
+		BEGIN
+		SET @v_value = ( @sales_amount-@a)/(@b-@a);
+		END
+
+		ELSE IF (@sales_amount >= @b) and (@sales_amount< @c)
+		BEGIN
+			SET @v_value = 1;
+		END
+
+		ELSE IF (@sales_amount >= @c) and (@sales_amount< @d)  
+		BEGIN
+			SET @v_value = (@d-@sales_amount)/(@d-@c);
+		END
+
+		ELSE
+		BEGIN
+		SET @v_value = 0;  
+		END
+
+		FETCH NEXT FROM update_meberships_cursor
+		INTO @MEM_A, @MEM_B, @MEM_C, @MEM_D
+	END
+	return @v_value
+END
+GO
+
+IF object_id(N'update_sales_excellent_z', N'FN') IS NOT NULL
+    DROP FUNCTION update_sales_excellent_z
+GO
+
+create FUNCTION update_sales_excellent_z(
+@campaign_no numeric, 
+@sales_amount decimal(20,5), 
+@rule_set2 numeric
+) 
+
+returns DECIMAL
+AS
+BEGIN
+	DECLARE @v_value decimal(20,5),
+		 @a decimal(20,5), --:= 0;
+		 @b decimal(20,5), --:= 0;
+		 @c decimal(20,5),  --:= 2500000;
+		 @d decimal(20,5),
+		 @MEM_A decimal(20,5),
+		 @MEM_B decimal(20,5),
+		 @MEM_C decimal(20,5),
+		 @MEM_D decimal(20,5)
+
+	DECLARE update_meberships_cursor CURSOR FOR
+	SELECT MEMBERSHIP_A, MEMBERSHIP_B, MEMBERSHIP_C, MEMBERSHIP_D from fuzzy_param_trapezoid 
+	where FUZZY_NAME='EXCELLENT' and 
+	ATTRIBUTE_NAME='SALES' and MEM_SET = @rule_set2
+ 
+	OPEN update_meberships_cursor
+	FETCH NEXT FROM update_meberships_cursor
+	INTO @MEM_A, @MEM_B, @MEM_C, @MEM_D
+
+	WHILE (@@FETCH_STATUS = 0)
+	BEGIN
+		SET @a = @MEM_A*1000000;
+		SET @b = @MEM_B*1000000;
+		SET @c = @MEM_C*1000000;
+		SET @D = @MEM_D*1000; 
+ 
+
+		IF(@sales_amount >= @a) and (@sales_amount< @b) 
+		BEGIN
+		SET @v_value = ( @sales_amount-@a)/(@b-@a);
+		END
+
+		ELSE IF (@sales_amount >= @b) and (@sales_amount< @c)
+		BEGIN
+			SET @v_value = 1;
+		END
+
+		ELSE IF (@sales_amount >= @c) and (@sales_amount< @d)  
+		BEGIN
+			SET @v_value = (@d-@sales_amount)/(@d-@c);
+		END
+
+		ELSE
+		BEGIN
+		SET @v_value = 0;  
+		END
+
+		FETCH NEXT FROM update_meberships_cursor
+		INTO @MEM_A, @MEM_B, @MEM_C, @MEM_D
+	END
+	return @v_value
+END
+GO
+
+-------------SALES TRAPEZOID FUNCTION END -------------------
