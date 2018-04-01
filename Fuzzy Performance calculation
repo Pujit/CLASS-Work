@@ -1,0 +1,654 @@
+
+
+if not exists (select * from sysobjects where name='camp_fuzzy_performance_weight' and xtype='U')
+CREATE TABLE camp_fuzzy_performance_weight(
+campaign_no NUMERIC NOT NULL,
+mem_set INT,
+campaign_name nVARCHAR(100) NOT NULL,
+campaign_description nVARCHAR(500) NOT NULL, 
+REPORT_DATE DATE NOT NULL,
+total_profit nVARCHAR(50),
+profit_WEIGHT DECIMAL(20,7),
+NUMBER_PRODUCT nVARCHAR(50),
+PRODUCTS_WEIGHT DECIMAL(20,7),
+SALES_TOTAL nVARCHAR(50),
+SALES_WEIGHT DECIMAL(20,7),
+CONSTRAINT CAMP_FUZZY_PERFORM_W_EMP_NO_PK PRIMARY KEY (campaign_no, mem_set));
+GO
+
+
+IF EXISTS ( SELECT * 
+            FROM   sysobjects 
+            WHERE  id = object_id(N'[dbo].[p_update_camp_fuzzy_perform_mv]') 
+                   and OBJECTPROPERTY(id, N'IsProcedure') = 1 )
+BEGIN
+    DROP PROCEDURE [dbo].[p_update_camp_fuzzy_perform_mv]
+END
+
+GO
+CREATE PROCEDURE p_update_camp_fuzzy_perform_mv 
+AS
+SET NOCOUNT ON
+
+DECLARE @v_campaign_no numeric,
+@v_campaign_name nvarchar(100),
+@v_campaign_description nvarchar(500),
+@v_report_date date,
+@v_mem_set int,
+@v_fuzzy_status int
+
+DECLARE performance_cur CURSOR FOR 
+select t1.campaign_no,t1.campaign_name,t1.campaign_description, sysdate, t2.mem_set, t2.status
+FROM 
+(
+SELECT campaign_no, campaign_name, campaign_description, sysdatetime() as sysdate
+FROM wt_net)t1,
+(
+select DISTINCT MEM_SET as mem_set, status
+from fuzzy_param_triangle
+where status=1)t2;
+
+--SELECT e.campaign_no, e.Campaign_Name, e.Campaign_description, sysdatetime(), f.MEM_SET as mem_set, f.status as Fuzzy_Status
+--FROM wt_net e, fuzzy_param_triangle  f
+--GROUP BY e.Campaign_No, e.Campaign_Name, e.Campaign_description, f.MEM_SET, f.status;
+
+
+
+
+OPEN performance_cur
+FETCH NEXT FROM performance_cur
+INTO @v_campaign_no, @v_campaign_name, @v_campaign_description, @v_report_date, @v_mem_set, @v_fuzzy_status
+
+WHILE (@@FETCH_STATUS = 0)
+BEGIN
+	IF @v_fuzzy_status =1 
+	BEGIN
+	INSERT INTO camp_fuzzy_performance_mv (campaign_no, campaign_name, campaign_description, report_date, mem_set)
+	 VALUES(@v_campaign_no, @v_campaign_name, @v_campaign_description, @v_report_date, @v_mem_set);
+	END
+
+
+	FETCH NEXT FROM performance_cur
+	INTO @v_campaign_no, @v_campaign_name, @v_campaign_description, @v_report_date, @v_mem_set, @v_fuzzy_status
+END
+CLOSE performance_cur
+DEALLOCATE performance_cur
+GO
+
+
+
+
+IF OBJECT_ID(N't_camp_fuzzy_performance_mv', N'TR') IS NOT NULL
+    exec sp_executesql N'DROP TRIGGER t_camp_fuzzy_performance_mv';
+GO
+CREATE TRIGGER t_camp_fuzzy_performance_mv 
+ON camp_fuzzy_performance_mv
+AFTER INSERT 
+AS
+--This trigger will update the emp_fuzzy_performance and 
+--emp_fuzzy_performance_weight  tables when an insert is made on the 
+--emp_fuzzy_performance_mv materialized view.
+
+DECLARE
+
+@v_s_campaign_no numeric,
+@v_s_campaign_name nvarchar(100),
+@v_s_campaign_description nvarchar(500),
+@v_s_report_date date,
+
+@v_s_excellent DECIMAL(18,2),
+@v_s_above_average DECIMAL(18,2),
+@v_s_average DECIMAL(18,2),
+@v_s_below_average DECIMAL(18,2),
+@v_s_POOR DECIMAL(18,2),
+@v_s_mem_set INT,
+
+@v_pr_excellent DECIMAL(18,2),
+@v_pr_above_average DECIMAL(18,2),
+@v_pr_average DECIMAL(18,2),
+@v_pr_below_average DECIMAL(18,2),
+@v_pr_POOR DECIMAL(18,2),
+
+@v_p_excellent DECIMAL(18,2),
+@v_p_above_average DECIMAL(18,2),
+@v_p_average DECIMAL(18,2),
+@v_p_below_average DECIMAL(18,2),
+@v_p_POOR DECIMAL(18,2),
+
+@count_rec int,
+@mem_set int
+
+
+DECLARE performance_cur2 CURSOR FOR 
+select DISTINCT s.campaign_no, i.campaign_name, i.campaign_description, i.report_date, s.POOR, s.below_average,  s.average, s.above_average, s.excellent, s.mem_set, 
+pr.POOR, pr.below_average, pr.average, pr.above_average, pr.excellent, p.POOR, p.below_average, 
+p.average, p.above_average, p.excellent
+from
+camp_fuzzy_sales s, camp_fuzzy_product p, camp_fuzzy_profit pr, inserted i
+WHERE s.campaign_no = p.campaign_no
+AND p.campaign_no = pr.campaign_no
+AND s.campaign_no = i.campaign_no
+AND s.mem_set = p.mem_set
+AND p.mem_set = pr.mem_set
+AND s.mem_set = i.mem_set;
+
+
+OPEN performance_cur2
+FETCH NEXT FROM performance_cur2
+INTO @v_s_campaign_no, @v_s_campaign_name, @v_s_campaign_description, @v_s_report_date, @v_s_POOR, @v_s_below_average, @v_s_average, @v_s_above_average, @v_s_excellent,
+@v_s_mem_set, @v_pr_POOR, @v_pr_below_average, @v_pr_average, @v_pr_above_average, @v_pr_excellent, @v_p_POOR, 
+@v_p_below_average, @v_p_average, @v_p_above_average, @v_p_excellent
+
+
+SET @mem_set = (select inserted.MEM_SET from inserted)
+SET @count_rec = (select count(*) from fuzzy_param_trapezoid  where MEM_SET = @v_s_mem_set)
+--select count (*) into @count_rec from fuzzy_param_trapezoid where MEM_SET = (@mem_set);
+
+WHILE (@@FETCH_STATUS = 0)
+BEGIN
+if @count_rec =0
+BEGIN
+UPDATE camp_fuzzy_performance_mv
+SET total_profit = case
+						when @v_pr_excellent >0 then 'EXCELLENT'
+						when @v_pr_above_average > 0 then 'ABOVE_AVG'
+						when @v_pr_average > 0 then 'AVG'
+						when @v_pr_below_average > 0 then 'BELOW_AVG'
+						when  @v_pr_POOR > 0 then 'POOR'  
+					end,
+
+	number_product = case
+						when @v_p_excellent >0 then 'EXCELLENT'
+						when @v_p_above_average > 0 then 'ABOVE_AVG'
+						when @v_p_average > 0 then 'AVG'
+						when @v_p_below_average > 0 then 'BELOW_AVG'
+						when  @v_p_POOR > 0 then 'POOR'  
+					end,
+
+
+	sales_total  = case
+						when @v_s_excellent >0 then 'EXCELLENT'
+						when @v_s_above_average > 0 then 'ABOVE_AVG'
+						when @v_s_average > 0 then 'AVG'
+						when @v_s_below_average > 0 then 'BELOW_AVG'
+						when  @v_s_POOR > 0 then 'POOR'  
+					end
+	where mem_set=@v_s_mem_set;
+
+
+INSERT INTO camp_fuzzy_performance (campaign_no, mem_set, campaign_name, campaign_description, report_date, total_profit, 
+number_product, sales_total)
+
+
+SELECT @v_s_campaign_no, @v_s_mem_set, @v_s_campaign_name, @v_s_campaign_description, @v_s_report_date, 
+
+case 
+when @v_pr_excellent >0 then 'EXCELLENT'
+when @v_pr_above_average > 0 then 'ABOVE_AVG'
+when @v_pr_average > 0 then 'AVG'
+when @v_pr_below_average > 0 then 'BELOW_AVG'
+when  @v_pr_POOR > 0 then 'POOR'  
+end,
+
+
+case 
+when @v_p_excellent >0 then 'EXCELLENT'
+when @v_p_above_average > 0 then 'ABOVE_AVG'
+when @v_p_average > 0 then 'AVG'
+when @v_p_below_average > 0 then 'BELOW_AVG'
+when  @v_p_POOR > 0 then 'POOR'  
+end,
+
+case 
+when @v_s_excellent >0 then 'EXCELLENT'
+when @v_s_above_average > 0 then 'ABOVE_AVG'
+when @v_s_average > 0 then 'AVG'
+when @v_s_below_average > 0 then 'BELOW_AVG'
+when  @v_s_POOR > 0 then 'POOR'  
+end
+
+
+
+
+INSERT INTO camp_fuzzy_performance_weight(
+	campaign_no, mem_set, campaign_name, campaign_description, report_date, total_profit, profit_weight, number_product,
+	products_weight, sales_total, sales_weight
+) 
+
+
+select campaign_no, mem_set, campaign_name, campaign_description, report_date, 
+case 
+when @v_pr_excellent >0 then 'EXCELLENT'
+when @v_pr_above_average > 0 then 'ABOVE_AVG'
+when @v_pr_average > 0 then 'AVG'
+when @v_pr_below_average > 0 then 'BELOW_AVG'
+when  @v_pr_POOR > 0 then 'POOR'  
+end,
+
+case 
+when @v_pr_excellent >0 then @v_pr_excellent
+when @v_pr_above_average > 0 then @v_pr_above_average
+when @v_pr_average > 0 then @v_pr_average 
+when @v_pr_below_average > 0 then @v_pr_below_average
+when  @v_pr_POOR > 0 then @v_pr_POOR  
+end,
+
+case 
+when @v_p_excellent >0 then 'EXCELLENT'
+when @v_p_above_average > 0 then 'ABOVE_AVG'
+when @v_p_average > 0 then 'AVG'
+when @v_p_below_average > 0 then 'BELOW_AVG'
+when  @v_p_POOR > 0 then 'POOR'  
+end,
+
+case 
+when @v_p_excellent >0 then @v_p_excellent
+when @v_p_above_average > 0 then @v_p_above_average
+when @v_p_average > 0 then @v_p_average 
+when @v_p_below_average > 0 then @v_p_below_average
+when  @v_p_POOR > 0 then @v_p_POOR
+end,
+
+case 
+when @v_s_excellent >0 then 'EXCELLENT'
+when @v_s_above_average > 0 then 'ABOVE_AVG'
+when @v_s_average > 0 then 'AVG'
+when @v_s_below_average > 0 then 'BELOW_AVG'
+when  @v_s_POOR > 0 then 'POOR'  
+end,
+
+case 
+when @v_s_excellent >0 then @v_s_excellent 
+when @v_s_above_average > 0 then @v_s_above_average
+when @v_s_average > 0 then @v_s_average 
+when @v_s_below_average > 0 then @v_s_below_average
+when  @v_s_POOR > 0 then @v_s_POOR
+ end
+ from inserted
+ END
+	FETCH NEXT FROM performance_cur2
+	INTO @v_s_campaign_no, @v_s_campaign_name, @v_s_campaign_description, @v_s_report_date, @v_s_POOR, @v_s_below_average, @v_s_average, @v_s_above_average, @v_s_excellent,
+	@v_s_mem_set, @v_pr_POOR, @v_pr_below_average, @v_pr_average, @v_pr_above_average, @v_pr_excellent, @v_p_POOR, 
+	@v_p_below_average, @v_p_average, @v_p_above_average, @v_p_excellent
+
+
+END
+
+CLOSE performance_cur2
+DEALLOCATE performance_cur2
+GO
+
+
+
+IF OBJECT_ID(N't_camp_fuzzy_performance_mv_z', N'TR') IS NOT NULL
+    exec sp_executesql N'DROP TRIGGER t_camp_fuzzy_performance_mv_z';
+GO
+CREATE TRIGGER t_camp_fuzzy_performance_mv_z
+ON camp_fuzzy_performance_mv
+AFTER INSERT 
+AS
+--This trigger will update the emp_fuzzy_performance and 
+--emp_fuzzy_performance_weight  tables when an insert is made on the 
+--emp_fuzzy_performance_mv materialized view.
+
+DECLARE
+
+@v_s_campaign_no numeric,
+@v_s_campaign_name nvarchar(100),
+@v_s_campaign_description nvarchar(500),
+@v_s_report_date date,
+
+@v_s_excellent DECIMAL(18,2),
+@v_s_above_average DECIMAL(18,2),
+@v_s_average DECIMAL(18,2),
+@v_s_below_average DECIMAL(18,2),
+@v_s_POOR DECIMAL(18,2),
+@v_s_mem_set INT,
+
+@v_pr_excellent DECIMAL(18,2),
+@v_pr_above_average DECIMAL(18,2),
+@v_pr_average DECIMAL(18,2),
+@v_pr_below_average DECIMAL(18,2),
+@v_pr_POOR DECIMAL(18,2),
+
+@v_p_excellent DECIMAL(18,2),
+@v_p_above_average DECIMAL(18,2),
+@v_p_average DECIMAL(18,2),
+@v_p_below_average DECIMAL(18,2),
+@v_p_POOR DECIMAL(18,2),
+
+@count_rec int,
+@mem_set int
+
+--SET @mem_set = (select inserted.MEM_SET from inserted)
+--SET @count_rec = (select count(*) from fuzzy_param_triangle triangle, inserted i
+--					 where triangle.MEM_SET = i.mem_set)
+----select count (*) into @count_rec from fuzzy_param_trapezoid where MEM_SET = (@mem_set);
+
+DECLARE performance_cur6 CURSOR FOR 
+select DISTINCT s.campaign_no, i.campaign_name, i.campaign_description, i.report_date, s.POOR, s.below_average,
+s.average, s.above_average, s.excellent, s.mem_set, pr.POOR, pr.below_average, pr.average, pr.above_average, pr.excellent, p.POOR, p.below_average, 
+p.average, p.above_average, p.excellent
+from
+camp_fuzzy_sales s, camp_fuzzy_product p, camp_fuzzy_profit pr, inserted i
+WHERE s.campaign_no = p.campaign_no
+AND p.campaign_no = pr.campaign_no
+AND s.campaign_no = i.campaign_no
+AND s.mem_set = p.mem_set
+AND p.mem_set = pr.mem_set
+AND s.mem_set = i.mem_set;
+
+
+OPEN performance_cur6
+FETCH NEXT FROM performance_cur6
+INTO @v_s_campaign_no, @v_s_campaign_name, @v_s_campaign_description, @v_s_report_date, @v_s_POOR, @v_s_below_average, @v_s_average,
+ @v_s_above_average, @v_s_excellent,
+@v_s_mem_set, @v_pr_POOR, @v_pr_below_average, @v_pr_average, @v_pr_above_average, @v_pr_excellent, @v_p_POOR, 
+@v_p_below_average, @v_p_average, @v_p_above_average, @v_p_excellent
+
+
+SET @mem_set = (select inserted.MEM_SET from inserted)
+SET @count_rec = (select count(*) from fuzzy_param_triangle  where MEM_SET = @v_s_mem_set)
+
+
+WHILE (@@FETCH_STATUS = 0)
+BEGIN
+ if @count_rec = 0
+ BEGIN
+UPDATE camp_fuzzy_performance_mv
+SET total_profit = case
+						when @v_pr_excellent >0 then 'EXCELLENT'
+						when @v_pr_above_average > 0 then 'ABOVE_AVG'
+						when @v_pr_average > 0 then 'AVG'
+						when @v_pr_below_average > 0 then 'BELOW_AVG'
+						when  @v_pr_POOR > 0 then 'POOR'  
+					end,
+
+	number_product = case
+						when @v_p_excellent >0 then 'EXCELLENT'
+						when @v_p_above_average > 0 then 'ABOVE_AVG'
+						when @v_p_average > 0 then 'AVG'
+						when @v_p_below_average > 0 then 'BELOW_AVG'
+						when  @v_p_POOR > 0 then 'POOR'  
+					end,
+
+
+	sales_total  = case
+						when @v_s_excellent >0 then 'EXCELLENT'
+						when @v_s_above_average > 0 then 'ABOVE_AVG'
+						when @v_s_average > 0 then 'AVG'
+						when @v_s_below_average > 0 then 'BELOW_AVG'
+						when  @v_s_POOR > 0 then 'POOR'  
+					end
+	where mem_set=@v_s_mem_set;
+
+INSERT INTO camp_fuzzy_performance (campaign_no, mem_set, campaign_name, campaign_description, report_date, total_profit, 
+number_product, sales_total)
+SELECT @v_s_campaign_no, @v_s_mem_set, @v_s_campaign_name, @v_s_campaign_description, @v_s_report_date, 
+
+case 
+when @v_pr_excellent >0 then 'EXCELLENT'
+when @v_pr_above_average > 0 then 'ABOVE_AVG'
+when @v_pr_average > 0 then 'AVG'
+when @v_pr_below_average > 0 then 'BELOW_AVG'
+when  @v_pr_POOR > 0 then 'POOR'  
+end,
+
+case 
+when @v_p_excellent >0 then 'EXCELLENT'
+when @v_p_above_average > 0 then 'ABOVE_AVG'
+when @v_p_average > 0 then 'AVG'
+when @v_p_below_average > 0 then 'BELOW_AVG'
+when  @v_p_POOR > 0 then 'POOR'  
+end,
+
+case 
+when @v_s_excellent >0 then 'EXCELLENT'
+when @v_s_above_average > 0 then 'ABOVE_AVG'
+when @v_s_average > 0 then 'AVG'
+when @v_s_below_average > 0 then 'BELOW_AVG'
+when  @v_s_POOR > 0 then 'POOR'  
+end
+
+
+
+INSERT INTO camp_fuzzy_performance_weight(
+	campaign_no, mem_set, campaign_name, campaign_description, report_date, total_profit, profit_weight, number_product,
+	products_weight, sales_total, sales_weight
+) 
+
+
+select campaign_no, mem_set, campaign_name, campaign_description, report_date, 
+case 
+when @v_pr_excellent >0 then 'EXCELLENT'
+when @v_pr_above_average > 0 then 'ABOVE_AVG'
+when @v_pr_average > 0 then 'AVG'
+when @v_p_below_average > 0 then 'BELOW_AVG'
+when  @v_pr_POOR > 0 then 'POOR'  
+end,
+
+case 
+when @v_pr_excellent >0 then @v_pr_excellent
+when @v_pr_above_average > 0 then @v_pr_above_average
+when @v_pr_average > 0 then @v_pr_average 
+when @v_pr_below_average > 0 then @v_pr_below_average
+when  @v_pr_POOR > 0 then @v_pr_POOR  
+end,
+
+case 
+when @v_p_excellent >0 then 'EXCELLENT'
+when @v_p_above_average > 0 then 'ABOVE_AVG'
+when @v_p_average > 0 then 'AVG'
+when @v_p_below_average > 0 then 'BELOW_AVG'
+when  @v_p_POOR > 0 then 'POOR'  
+end,
+
+case 
+when @v_p_excellent >0 then @v_p_excellent
+when @v_p_above_average > 0 then @v_p_above_average
+when @v_p_average > 0 then @v_p_average 
+when @v_p_below_average > 0 then @v_p_below_average
+when  @v_p_POOR > 0 then @v_p_POOR
+end,
+
+case 
+when @v_s_excellent >0 then 'EXCELLENT'
+when @v_s_above_average > 0 then 'ABOVE_AVG'
+when @v_s_average > 0 then 'AVG'
+when @v_s_below_average > 0 then 'BELOW_AVG'
+when  @v_s_POOR > 0 then 'POOR'  
+end,
+
+case 
+when @v_s_excellent >0 then @v_s_excellent 
+when @v_s_above_average > 0 then @v_s_above_average
+when @v_s_average > 0 then @v_s_average 
+when @v_s_below_average > 0 then @v_s_below_average
+when  @v_s_POOR > 0 then @v_s_POOR
+ end
+ from inserted
+ END
+
+	FETCH NEXT FROM performance_cur6
+	INTO @v_s_campaign_no, @v_s_campaign_name, @v_s_campaign_description, @v_s_report_date, @v_s_POOR, @v_s_below_average, @v_s_average,
+	 @v_s_above_average, @v_s_excellent,
+	@v_s_mem_set, @v_pr_POOR, @v_pr_below_average, @v_pr_average, @v_pr_above_average, @v_pr_excellent, @v_p_POOR, 
+	@v_p_below_average, @v_p_average, @v_p_above_average, @v_p_excellent
+
+END
+
+CLOSE performance_cur6
+DEALLOCATE performance_cur6
+GO
+
+
+
+IF EXISTS ( SELECT * 
+            FROM   sysobjects 
+            WHERE  id = object_id(N'[dbo].[p_update_camp_fuzzy_prfm_mv_z]') 
+                   and OBJECTPROPERTY(id, N'IsProcedure') = 1 )
+BEGIN
+    DROP PROCEDURE [dbo].[p_update_camp_fuzzy_prfm_mv_z]
+END
+GO
+
+CREATE PROCEDURE p_update_camp_fuzzy_prfm_mv_z 
+AS
+SET NOCOUNT ON
+--this procedure updates the emp_fuzzy_performance_mv materialized view.
+--used to initially create the fuzzy table.
+DECLARE 
+@v_campaign_no NUMERIC,
+@v_campaign_name nvarchar(100),
+@v_campaign_description nvarchar(500),
+@v_report_date date,
+@v_mem_set int,
+@v_fuzzy_status int
+
+DECLARE performance_cur1 CURSOR FOR
+SELECT e.campaign_no, e.Campaign_Name, e.Campaign_description, sysdatetime(), f.MEM_SET as mem_set, f.status as Fuzzy_Status
+FROM wt_net e, fuzzy_param_trapezoid  f
+GROUP BY e.Campaign_No, e.Campaign_Name, e.Campaign_description, f.MEM_SET, f.status;
+
+OPEN performance_cur1
+FETCH NEXT FROM performance_cur1
+INTO @v_campaign_no, @v_campaign_name, @v_campaign_description, @v_report_date, @v_mem_set, @v_fuzzy_status
+
+WHILE (@@FETCH_STATUS = 0)
+BEGIN
+	IF @v_fuzzy_status =1 
+	BEGIN
+	INSERT INTO camp_fuzzy_performance_mv (Campaign_No, Campaign_Name, Campaign_description, report_date, mem_set) 
+	VALUES(@v_campaign_no, @v_campaign_name, @v_campaign_description, @v_report_date, @v_mem_set);
+	END
+
+	FETCH NEXT FROM performance_cur1
+	INTO @v_campaign_no, @v_campaign_name, @v_campaign_description, @v_report_date, @v_mem_set, @v_fuzzy_status
+END
+CLOSE performance_cur1
+DEALLOCATE performance_cur1
+GO
+
+
+/*delete from camp_fuzzy_performance
+delete from camp_fuzzy_performance_mv
+delete from camp_fuzzy_performance_weight
+
+
+select * from camp_fuzzy_performance
+select * from camp_fuzzy_performance_mv
+select * from camp_fuzzy_performance_weight
+*/
+
+
+IF EXISTS ( SELECT * 
+            FROM   sysobjects 
+            WHERE  id = object_id(N'[dbo].[p_generate_fuzzy_decision]') 
+                   and OBJECTPROPERTY(id, N'IsProcedure') = 1 )
+BEGIN
+    DROP PROCEDURE [dbo].[p_generate_fuzzy_decision]
+END
+
+GO
+
+CREATE PROCEDURE p_generate_fuzzy_decision
+AS
+DECLARE @campaign_no numeric, 
+@mem_set int, 
+@campaign_name nvarchar(100), 
+@campaign_description nvarchar(500),
+ @report_date date, 
+ @dec_set_rule int, 
+ @decision_net nvarchar(100),
+  @total_profit nvarchar(100), 
+ @number_product nvarchar(100),
+  @sales_total nvarchar(100), 
+  @rule_set int, 
+  @fuzzy_mem_set int,
+  @f_rule_set int,
+  @rule_num int,
+  @fuzzy_status int,
+  @f_total_profit nvarchar(100), 
+  @f_number_product  nvarchar(100),
+   @f_sales_total nvarchar(100),
+    @f_decision_net nvarchar(100)
+
+DECLARE cur1 CURSOR FOR
+SELECT campaign_no, mem_set, campaign_name, campaign_description, report_date
+FROM camp_fuzzy_performance;
+
+--this procedure updates the emp_fuzzy_decision table 
+--relies on information in the emp_fuzzy_performance table
+OPEN cur1 
+FETCH NEXT FROM cur1 INTO @campaign_no, @mem_set, @campaign_name, @campaign_description, @report_date;
+
+WHILE @@FETCH_STATUS = 0
+BEGIN
+	
+	DECLARE cur2 CURSOR FOR
+	SELECT distinct rule_set from fuzzy_decision where status = 1
+
+	OPEN cur2
+	FETCH NEXT FROM cur2 INTO @rule_set
+
+	WHILE @@FETCH_STATUS = 0
+	BEGIN
+		INSERT INTO camp_fuzzy_decision(campaign_no, fuzzy_mem_set, campaign_name, campaign_description, report_date, dec_set_rule, decision_net) 
+		VALUES(@campaign_no, @mem_set, @campaign_name, @campaign_description ,@report_date, @rule_set, 'NO DECISION');
+		FETCH NEXT FROM cur2 INTO @rule_set
+	END
+	CLOSE cur2
+	DEALLOCATE cur2
+
+	FETCH NEXT FROM cur1 INTO @campaign_no, @mem_set, @campaign_name, @campaign_description, @report_date
+END
+CLOSE cur1
+DEALLOCATE cur1
+
+DECLARE cur3 CURSOR FOR 
+select distinct rule_set from fuzzy_decision where status =1
+
+OPEN cur3
+FETCH NEXT FROM cur3 INTO  @rule_set
+
+WHILE @@FETCH_STATUS=0
+BEGIN
+	DECLARE cur4 CURSOR FOR 
+	SELECT campaign_no, mem_set, campaign_name, campaign_description, report_date, total_profit, number_product, sales_total
+	FROM camp_fuzzy_performance
+
+	OPEN cur4
+	FETCH NEXT FROM cur4 INTO @campaign_no, @mem_set, @campaign_name, @campaign_description, @report_date, @total_profit, @number_product, @sales_total
+
+			WHILE @@FETCH_STATUS = 0
+			BEGIN
+			--PRINT 'Processing ClientID: '
+				DECLARE cur5 CURSOR FOR 
+				select * from FUZZY_DECISION where rule_set = @rule_set
+
+				OPEN cur5
+				FETCH NEXT FROM cur5 INTO @f_rule_set, @rule_num, @fuzzy_status, @f_total_profit, @f_number_product, @f_sales_total, @f_decision_net
+				WHILE @@FETCH_STATUS = 0
+				BEGIN 
+					IF @total_profit = @f_total_profit and @number_product = @f_number_product and @sales_total = @f_sales_total
+					BEGIN
+						update camp_fuzzy_decision 
+						set DECISION_net = @f_decision_net
+						where campaign_no = @campaign_no
+						and fuzzy_mem_set = @mem_set
+						and dec_set_rule = @f_rule_set
+					END
+					FETCH NEXT FROM cur5 INTO @f_rule_set, @rule_num, @fuzzy_status, @f_total_profit, @f_number_product, @f_sales_total, @f_decision_net
+				END 
+				CLOSE cur5
+				DEALLOCATE cur5
+			FETCH NEXT FROM cur4 INTO @campaign_no, @mem_set, @campaign_name, @campaign_description, @report_date, @total_profit, @number_product, @sales_total
+			END
+	CLOSE cur4
+	DEALLOCATE cur4
+
+	FETCH NEXT FROM cur3 INTO  @rule_set
+END
+CLOSE cur3
+DEALLOCATE cur3
+GO
