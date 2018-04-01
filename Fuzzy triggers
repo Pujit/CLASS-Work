@@ -1,0 +1,64 @@
+
+------------------------SALES TRAINGLE TRIGGER --------------------------
+IF OBJECT_ID(N't_camp_fuzzy_sales_mv', N'TR') IS NOT NULL
+    exec sp_executesql N'DROP TRIGGER t_camp_fuzzy_sales_mv';
+GO
+create TRIGGER t_camp_fuzzy_sales_mv 
+ON CAMP_FUZZY_SALES_MV
+AFTER INSERT 
+AS
+
+BEGIN 
+DECLARE
+@count_rec int,
+@mem_value int,
+@emp_no int
+
+SET @mem_value = (select inserted.MEM_SET from inserted)
+SET @count_rec = (select count(*) from fuzzy_param_trapezoid where MEM_SET = @mem_value)
+
+if(@count_rec = 0)
+	BEGIN
+	insert into camp_fuzzy_sales
+	select i.campaign_no, i.mem_set, i.campaign_name, i.campaign_description, i.report_date, i.sales_total,
+	dbo.update_sales_poor(i.campaign_no, i.SALES_TOTAL, i.MEM_SET),
+	dbo.update_sales_below_average(i.campaign_no, i.SALES_TOTAL, i.MEM_SET),
+	dbo.update_sales_average(i.campaign_no, i.SALES_TOTAL, i.MEM_SET), 
+	dbo.update_sales_above_average(i.campaign_no, i.SALES_TOTAL, i.MEM_SET),
+	dbo.update_sales_excellent(i.campaign_no, i.SALES_TOTAL, i.MEM_SET)
+	from inserted i
+	END
+END
+GO
+------------------------ SALES TRAINGLE TRIGGER END ---------------------------------
+------------------------ SALES Trapezopoid TRIGGER Start ---------------------------------
+IF OBJECT_ID(N't_camp_fuzzy_sales_mv_z', N'TR') IS NOT NULL
+    exec sp_executesql N'DROP TRIGGER t_camp_fuzzy_sales_mv_z';
+GO
+create TRIGGER t_camp_fuzzy_sales_mv_z 
+ON CAMP_FUZZY_SALES_MV
+AFTER INSERT 
+AS
+
+BEGIN 
+DECLARE
+@count_rec int,
+@mem_value int
+
+SET @mem_value = (select inserted.MEM_SET from inserted)
+SET @count_rec = (select count(*) from fuzzy_param_triangle where MEM_SET = @mem_value)
+
+if(@count_rec = 0)
+	BEGIN
+	insert into camp_fuzzy_sales
+	select i.campaign_no, i.mem_set, i.campaign_name, i.campaign_description, i.report_date, i.sales_total,
+	dbo.update_sales_poor_z(i.campaign_no, i.SALES_TOTAL, i.MEM_SET),
+	dbo.update_sales_below_average_z(i.campaign_no, i.SALES_TOTAL, i.MEM_SET),
+	dbo.update_sales_average_z(i.campaign_no, i.SALES_TOTAL, i.MEM_SET), 
+	dbo.update_sales_above_average_z(i.campaign_no, i.SALES_TOTAL, i.MEM_SET),
+	dbo.update_sales_excellent_z(i.campaign_no, i.SALES_TOTAL, i.MEM_SET)
+	from inserted i
+	END
+END
+GO
+----------------------Sales trapezoid trigger end --------------------------------------
