@@ -1,0 +1,9 @@
+EXEC p_update_camp_fuzzy_profit_mv
+EXEC p_update_camp_fuzzy_profit_mv_z
+EXEC p_update_camp_fuzzy_sales_mv
+EXEC p_update_camp_fuzzy_sales_mv_z
+EXEC p_update_camp_fuzzy_product_mv
+EXEC p_update_camp_fuzzy_product_mv_z
+EXEC p_update_camp_fuzzy_perform_mv
+EXEC p_update_camp_fuzzy_prfm_mv_z
+EXEC p_generate_fuzzy_decision
